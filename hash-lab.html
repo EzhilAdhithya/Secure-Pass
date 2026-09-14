@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hash Lab — Password Strength & Local Cracking Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/scrypt-async/2.0.1/scrypt-async.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/argon2-browser/1.18.0/argon2-bundled.min.js"></script>
+<style>
+  :root{
+    --bg: #EEF1EE;
+    --panel: #FFFFFF;
+    --ink: #1B211E;
+    --ink-soft: #55605A;
+    --line: #D3D9D3;
+    --teal: #1F5C54;
+    --teal-soft: #E4EEEC;
+    --amber: #B8722C;
+    --amber-soft: #F6E9DA;
+    --red: #A6402F;
+    --red-soft: #F5E4E0;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.5;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:40px 24px 80px;}
+  header{margin-bottom:32px;}
+  header h1{
+    font-size:28px;
+    font-weight:700;
+    margin:0 0 6px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    margin:0;
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:60ch;
+  }
+  .notice{
+    margin-top:16px;
+    padding:12px 16px;
+    background:var(--teal-soft);
+    border-left:3px solid var(--teal);
+    font-size:13.5px;
+    color:var(--ink);
+  }
+  nav.tabs{
+    display:flex;
+    border-bottom:1px solid var(--line);
+    margin-bottom:28px;
+  }
+  nav.tabs button{
+    font-family:var(--sans);
+    font-size:14.5px;
+    font-weight:600;
+    background:none;
+    border:none;
+    padding:12px 4px;
+    margin-right:28px;
+    color:var(--ink-soft);
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    position:relative;
+    top:1px;
+  }
+  nav.tabs button.active{
+    color:var(--ink);
+    border-bottom:2px solid var(--teal);
+  }
+  section.panel{display:none;}
+  section.panel.active{display:block;}
+
+  .field-row{margin-bottom:20px;}
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  input[type=text], input[type=password], select, textarea{
+    width:100%;
+    font-family:var(--mono);
+    font-size:14.5px;
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    background:var(--panel);
+    color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus, button:focus-visible{
+    outline:2px solid var(--teal);
+    outline-offset:1px;
+  }
+  .pw-input-group{display:flex;gap:8px;}
+  .pw-input-group input{flex:1;}
+  .btn-toggle, .btn-secondary{
+    font-family:var(--sans);
+    font-size:13px;
+    font-weight:600;
+    padding:0 14px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--ink-soft);
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .btn-primary{
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    padding:10px 20px;
+    border:none;
+    background:var(--teal);
+    color:#fff;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .btn-primary:disabled{background:#9BB3AE;cursor:not-allowed;}
+  .btn-primary.stop{background:var(--red);}
+
+  .meter-row{display:flex;align-items:center;gap:12px;margin:14px 0 4px;}
+  .meter{flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden;}
+  .meter-fill{height:100%;border-radius:4px;transition:width .25s ease, background .25s ease;}
+  .meter-label{font-family:var(--mono);font-size:13px;font-weight:600;min-width:76px;text-align:right;}
+
+  table.crack-times{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px;}
+  table.crack-times th, table.crack-times td{
+    text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);
+  }
+  table.crack-times th{color:var(--ink-soft);font-weight:600;font-size:12.5px;}
+  table.crack-times td.time{font-family:var(--mono);}
+
+  ul.findings{list-style:none;padding:0;margin:18px 0 0;}
+  ul.findings li{
+    display:flex;gap:10px;align-items:flex-start;
+    padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;
+  }
+  ul.findings li .tag{
+    font-family:var(--mono);font-size:11px;font-weight:600;
+    padding:2px 7px;border-radius:3px;white-space:nowrap;margin-top:2px;
+  }
+  .tag.warn{background:var(--red-soft);color:var(--red);}
+  .tag.ok{background:var(--teal-soft);color:var(--teal);}
+  .tag.info{background:var(--amber-soft);color:var(--amber);}
+
+  .breach-box{margin-top:20px;padding:14px 16px;border:1px solid var(--line);border-radius:4px;font-size:14px;}
+  .breach-box.hit{border-color:var(--red);background:var(--red-soft);}
+  .breach-box.clear{border-color:var(--teal);background:var(--teal-soft);}
+
+  fieldset{border:1px solid var(--line);border-radius:4px;padding:14px 16px;margin-bottom:20px;}
+  legend{font-size:13px;font-weight:600;color:var(--ink-soft);padding:0 6px;}
+  .checks{display:flex;flex-wrap:wrap;gap:14px 22px;margin-top:4px;}
+  .checks label{
+    display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;color:var(--ink);margin:0;
+  }
+  .checks input[type=checkbox]{width:auto;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media (max-width:640px){.grid2{grid-template-columns:1fr;}}
+
+  .console{
+    margin-top:18px;background:#1B211E;color:#DCE5DE;font-family:var(--mono);
+    font-size:13px;padding:16px;border-radius:4px;min-height:110px;
+    white-space:pre-wrap;line-height:1.6;
+  }
+  .console .hit-line{color:#9FD8A5;font-weight:600;}
+  .console .dim{color:#8A968F;}
+
+  .stats{display:flex;gap:24px;margin-top:14px;flex-wrap:wrap;}
+  .stat{font-family:var(--mono);}
+  .stat .n{font-size:20px;font-weight:600;display:block;}
+  .stat .l{font-size:11.5px;color:var(--ink-soft);}
+
+  .helptext{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
+  input[type=range]{width:100%;accent-color:var(--teal);}
+  hr.rule{border:none;border-top:1px solid var(--line);margin:32px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Hash Lab</h1>
+    <p>A hands-on tool for understanding what makes passwords weak — and why hashing, salting, and slow algorithms matter. Everything runs locally in your browser.</p>
+    <div class="notice">This lab works two ways: check a password's real-world strength, or attempt to recover a password from a hash <em>you already have</em> (an old export, a CTF challenge, your own records). It does not attempt logins, WiFi networks, or any live system.</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-panel="strength">Strength Check</button>
+    <button data-panel="hashlab">Hash Lab</button>
+    <button data-panel="generator">Generate Password</button>
+  </nav>
+
+  <!-- STRENGTH CHECK -->
+  <section class="panel active" id="strength">
+    <div class="field-row">
+      <label for="pw">Password to test</label>
+      <div class="pw-input-group">
+        <input type="password" id="pw" placeholder="Type a password — nothing leaves your browser" autocomplete="off">
+        <button class="btn-toggle" id="pwToggle" type="button">Show</button>
+      </div>
+    </div>
+
+    <div class="meter-row">
+      <div class="meter"><div class="meter-fill" id="meterFill" style="width:0%"></div></div>
+      <div class="meter-label" id="meterLabel">—</div>
+    </div>
+
+    <table class="crack-times">
+      <thead>
+        <tr><th>Attack scenario</th><th>Guess rate</th><th>Estimated time to crack</th></tr>
+      </thead>
+      <tbody id="crackTimesBody"></tbody>
+    </table>
+
+    <ul class="findings" id="findings"></ul>
+
+    <div class="field-row" style="margin-top:24px;">
+      <button class="btn-secondary" id="checkBreach" type="button">Check against known breaches</button>
+      <div class="helptext">Uses the Have I Been Pwned k-anonymity API — only the first 5 characters of the password's SHA-1 hash are sent, never the password itself.</div>
+    </div>
+    <div id="breachResult"></div>
+  </section>
+
+  <!-- HASH LAB -->
+  <section class="panel" id="hashlab">
+    <div class="grid2">
+      <div class="field-row">
+        <label for="hashInput">Hash to attack</label>
+        <input type="text" id="hashInput" placeholder="e.g. 5f4dcc3b5aa765d61d8327deb882cf99">
+      </div>
+      <div class="field-row">
+        <label for="hashType">Hash algorithm</label>
+        <select id="hashType">
+          <option value="md5">MD5</option>
+          <option value="sha1">SHA-1</option>
+          <option value="sha256">SHA-256</option>
+          <option value="sha384">SHA-384</option>
+          <option value="sha512">SHA-512</option>
+          <option value="crc32">CRC32</option>
+          <option value="bcrypt">bcrypt</option>
+          <option value="scrypt">scrypt</option>
+          <option value="argon2">argon2 (i/d/id)</option>
+        </select>
+        <div class="helptext" id="algoNote">bcrypt and argon2 hashes carry their own salt and cost parameters in the string itself (e.g. <code>$2b$12$...</code> or <code>$argon2id$v=19$...</code>) — just paste the full hash. scrypt has no single standard string format, so you'll enter its salt and cost parameters separately below. All three are intentionally slow, so expect single or low-double-digit guesses per second rather than millions.</div>
+      </div>
+    </div>
+
+    <div class="grid2" id="scryptParams" style="display:none;">
+      <div class="field-row">
+        <label for="scryptSalt">Salt (text, unless prefixed 0x for hex)</label>
+        <input type="text" id="scryptSalt" placeholder="e.g. a1b2c3 or 0x61316232633300">
+      </div>
+      <div class="field-row">
+        <label for="scryptKeyHex">Expected derived key (hex)</label>
+        <input type="text" id="scryptKeyHex" placeholder="the target output you're matching against">
+      </div>
+      <div class="field-row">
+        <label for="scryptN">N (cost, power of 2)</label>
+        <input type="text" id="scryptN" value="16384">
+      </div>
+      <div class="field-row">
+        <label for="scryptR">r (block size)</label>
+        <input type="text" id="scryptR" value="8">
+      </div>
+      <div class="field-row">
+        <label for="scryptP">p (parallelization)</label>
+        <input type="text" id="scryptP" value="1">
+      </div>
+      <div class="field-row">
+        <label for="scryptDkLen">Derived key length (bytes)</label>
+        <input type="text" id="scryptDkLen" value="32">
+      </div>
+    </div>
+
+    <fieldset>
+      <legend>Candidate source</legend>
+      <div class="field-row" style="margin-bottom:10px;">
+        <label for="wordlistChoice">Wordlist</label>
+        <select id="wordlistChoice">
+          <option value="builtin">Built-in common-password list (~600 entries)</option>
+          <option value="custom">Paste my own list</option>
+        </select>
+      </div>
+      <div class="field-row" id="customWordlistRow" style="display:none;">
+        <textarea id="customWordlist" rows="5" placeholder="one candidate per line"></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Mutation rules (applied on top of each wordlist entry)</legend>
+      <div class="checks">
+        <label><input type="checkbox" id="ruleCase" checked> Try capitalized (Password)</label>
+        <label><input type="checkbox" id="ruleDigits" checked> Append 0–999</label>
+        <label><input type="checkbox" id="ruleYears" checked> Append years 1970–2030</label>
+        <label><input type="checkbox" id="ruleLeet"> Leetspeak (a→4, e→3, i→1, o→0, s→5)</label>
+      </div>
+      <div class="helptext" id="spaceEstimate"></div>
+    </fieldset>
+
+    <button class="btn-primary" id="runBtn" type="button">Start attempt</button>
+
+    <div class="stats">
+      <div class="stat"><span class="n" id="statAttempts">0</span><span class="l">attempts</span></div>
+      <div class="stat"><span class="n" id="statRate">0</span><span class="l">guesses / sec</span></div>
+      <div class="stat"><span class="n" id="statElapsed">0.0s</span><span class="l">elapsed</span></div>
+    </div>
+
+    <div class="console" id="console">Ready. Provide a hash above and press Start attempt.</div>
+  </section>
+
+  <!-- GENERATOR -->
+  <section class="panel" id="generator">
+    <fieldset>
+      <legend>Length</legend>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="meter-row" style="margin:4px 0;">
+          <input type="range" id="genLength" min="8" max="64" value="20" style="flex:1;">
+          <div class="meter-label" id="genLengthLabel">20</div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Character types</legend>
+      <div class="checks">
+        <label><input type="checkbox" id="genLower" checked> Lowercase (a–z)</label>
+        <label><input type="checkbox" id="genUpper" checked> Uppercase (A–Z)</label>
+        <label><input type="checkbox" id="genDigits" checked> Digits (0–9)</label>
+        <label><input type="checkbox" id="genSymbols" checked> Symbols (!@#$…)</label>
+        <label><input type="checkbox" id="genAmbig"> Exclude look-alikes (l 1 I 0 O)</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Style</legend>
+      <div class="field-row" style="margin-bottom:8px;">
+        <label><input type="radio" name="genStyle" value="random" checked style="width:auto;margin-right:6px;">Random characters — highest entropy per character, hardest to memorize</label>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <label><input type="radio" name="genStyle" value="passphrase" style="width:auto;margin-right:6px;">Word-based passphrase — longer but easier to remember and type</label>
+      </div>
+      <div class="field-row" id="passphraseWords" style="display:none;margin-top:14px;margin-bottom:0;">
+        <label for="genWordCount">Number of words</label>
+        <input type="range" id="genWordCount" min="4" max="8" value="5" style="width:60%;display:inline-block;vertical-align:middle;">
+        <span id="genWordCountLabel" style="font-family:var(--mono);margin-left:10px;">5</span>
+      </div>
+    </fieldset>
+
+    <button class="btn-primary" id="genBtn" type="button">Generate</button>
+
+    <div class="field-row" style="margin-top:22px;">
+      <label for="genOutput">Result</label>
+      <div class="pw-input-group">
+        <input type="text" id="genOutput" readonly placeholder="Press Generate">
+        <button class="btn-toggle" id="genCopy" type="button">Copy</button>
+      </div>
+    </div>
+
+    <div class="meter-row">
+      <div class="meter"><div class="meter-fill" id="genMeterFill" style="width:0%"></div></div>
+      <div class="meter-label" id="genMeterLabel">—</div>
+    </div>
+    <p class="helptext" id="genEntropyNote"></p>
+    <p class="helptext">Generated locally using the browser's cryptographically secure random number generator (<code>crypto.getRandomValues</code>) — nothing is sent anywhere, and nothing is stored after you leave the page.</p>
+  </section>
+
+  <hr class="rule">
+  <p class="helptext">Built for learning: entropy math, dictionary/mutation attacks, and why slow hashing (bcrypt/scrypt/argon2) beats fast hashing (MD5/SHA) for storing real passwords. No network requests are made except the optional breach check, which you trigger manually.</p>
+</div>
+
+<script>
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.panel).classList.add('active');
+  });
+});
+
+/* ---------- common password list (small, for pattern + wordlist use) ---------- */
+/* ---------- shared word list & strength model (used by Checker and Generator) ---------- */
+const PASSPHRASE_WORDS = ["anchor","autumn","banjo","basil","beacon","birch","bison","blanket","bramble","breeze",
+"bridge","canyon","cedar","cinder","clover","comet","copper","coral","cotton","crescent","cricket","current",
+"dawn","delta","desert","dolphin","dragon","drift","dusk","ember","falcon","feather","fern","fjord","flint",
+"forest","fountain","frost","garnet","glacier","granite","gravel","harbor","hazel","heron","hollow","horizon",
+"indigo","island","ivory","jasper","juniper","kestrel","lagoon","lantern","larch","lichen","lilac","linen",
+"lotus","lumen","magnet","maple","marble","meadow","mesa","meteor","mint","mirror","mist","moss","nectar",
+"nimbus","nova","oasis","obsidian","onyx","opal","orbit","orchid","osprey","otter","paddle","paper","pebble",
+"pepper","pine","plateau","pollen","poppy","prairie","prism","quartz","quiver","raven","reed","ridge","river",
+"robin","rowan","saffron","sage","sail","salt","sandal","sapphire","satin","savanna","sequoia","shadow",
+"shale","shell","shore","silver","slate","sliver","smoke","sorrel","spark","sparrow","spice","spruce",
+"stone","storm","stream","summit","sunset","swift","tangerine","tempest","thistle","thorn","thunder","tide",
+"timber","topaz","trail","tundra","umber","valley","velvet","violet","walnut","warbler","water","wave",
+"whisper","willow","winter","wren","zephyr","zenith"];
+
+function detectPassphrase(pw){
+  const segments = pw.split(/[-_\s]+/).filter(Boolean);
+  if(segments.length < 3) return null;
+  let wordHits = 0, trailingDigits = '';
+  segments.forEach((seg, i)=>{
+    if(i === segments.length-1 && /^\d+$/.test(seg)){ trailingDigits = seg; return; }
+    if(PASSPHRASE_WORDS.includes(seg.toLowerCase())) wordHits++;
+  });
+  if(wordHits < 3 || wordHits < segments.length - 1) return null;
+  return { wordCount: wordHits, trailingDigits };
+}
+
+function strengthLabel(entropy, inCommonList){
+  if(inCommonList || entropy < 28) return {label:'Very weak', color:'var(--red)'};
+  if(entropy < 42) return {label:'Weak', color:'var(--amber)'};
+  if(entropy < 65) return {label:'Reasonable', color:'var(--teal)'};
+  if(entropy < 90) return {label:'Strong', color:'var(--teal)'};
+  return {label:'Very strong', color:'var(--teal)'};
+}
+
+const COMMON = ["123456","password","123456789","12345678","12345","qwerty","abc123","password1",
+"111111","123123","admin","letmein","welcome","monkey","login","iloveyou","dragon","football",
+"baseball","master","sunshine","princess","qwertyuiop","1q2w3e4r","000000","1234567","1234567890",
+"superman","trustno1","hello","freedom","whatever","ninja","shadow","michael","charlie","jennifer",
+"jordan","hunter","summer","tiger","cheese","hockey","ranger","daniel","starwars","klaster","112233",
+"george","asshole","computer","michelle","jessica","pepper","zaq1zaq1","access","batman","flower",
+"secret","internet","biteme","yankees","killer","pussy","soccer","buster","banana","hannah","donald",
+"bailey","corvette","test","matthew","robert","thomas","hockey","junior","harley","cookie","cowboy",
+"andrew","dolphin","yellow","liverpool","chelsea","arsenal","cricket","orange","peanut","carlos",
+"welcome1","password123","letmein1","qwerty123","1qaz2wsx","zxcvbnm","asdfghjkl","password!","admin123"];
+
+/* ---------- Strength Check ---------- */
+const pwInput = document.getElementById('pw');
+const pwToggle = document.getElementById('pwToggle');
+pwToggle.addEventListener('click', ()=>{
+  const showing = pwInput.type === 'text';
+  pwInput.type = showing ? 'password' : 'text';
+  pwToggle.textContent = showing ? 'Show' : 'Hide';
+});
+
+function charsetSize(pw){
+  let size = 0;
+  if(/[a-z]/.test(pw)) size += 26;
+  if(/[A-Z]/.test(pw)) size += 26;
+  if(/[0-9]/.test(pw)) size += 10;
+  if(/[^a-zA-Z0-9]/.test(pw)) size += 33;
+  return size || 1;
+}
+
+function isSequential(pw){
+  const seqs = ["abcdefghijklmnopqrstuvwxyz","0123456789","qwertyuiop","asdfghjkl","zxcvbnm"];
+  const lower = pw.toLowerCase();
+  for(const seq of seqs){
+    for(let i=0;i<=seq.length-3;i++){
+      const chunk = seq.slice(i,i+3);
+      if(lower.includes(chunk) || lower.includes(chunk.split('').reverse().join(''))) return true;
+    }
+  }
+  return false;
+}
+
+function hasRepeats(pw){
+  return /(.)\1\1/.test(pw);
+}
+
+function fmtTime(seconds){
+  if(seconds < 1) return "instant";
+  const units = [
+    [60,"seconds"],[60,"minutes"],[24,"hours"],[365,"days"],[100,"years"],[1000,"centuries"]
+  ];
+  let val = seconds, i=0;
+  const names = ["seconds","minutes","hours","days","years","centuries"];
+  if(seconds < 60) return Math.round(seconds)+" seconds";
+  val = seconds/60;
+  if(val < 60) return Math.round(val)+" minutes";
+  val = val/60;
+  if(val < 24) return Math.round(val)+" hours";
+  val = val/24;
+  if(val < 365) return Math.round(val)+" days";
+  val = val/365;
+  if(val < 100) return Math.round(val*10)/10+" years";
+  val = val/100;
+  if(val < 1e6) return Math.round(val)+" centuries";
+  return "longer than recorded history";
+}
+
+function updateStrength(){
+  const pw = pwInput.value;
+  const findings = [];
+  let score = 0;
+
+  if(!pw){
+    document.getElementById('meterFill').style.width = '0%';
+    document.getElementById('meterLabel').textContent = '—';
+    document.getElementById('crackTimesBody').innerHTML = '';
+    document.getElementById('findings').innerHTML = '';
+    return;
+  }
+
+  const entropy = Math.log2(Math.pow(charsetSize(pw), pw.length));
+  const lower = pw.toLowerCase();
+  const inCommonList = COMMON.includes(lower);
+  const phrase = detectPassphrase(pw);
+  let effectiveEntropy = entropy;
+
+  if(phrase){
+    effectiveEntropy = phrase.wordCount * Math.log2(PASSPHRASE_WORDS.length)
+      + (phrase.trailingDigits ? Math.log2(Math.pow(10, phrase.trailingDigits.length)) : 0);
+    findings.push({tag:'info', text:`Recognized as a ${phrase.wordCount}-word passphrase — strength is estimated by how many word combinations an attacker's dictionary would need to try (${Math.round(effectiveEntropy)} bits), not by counting letters and symbols like a random string.`});
+  }
+
+  if(inCommonList){
+    findings.push({tag:'warn', text:'This exact password appears in common password lists — it would be tried first in any real attack.'});
+    score -= 40;
+  }
+  if(pw.length < 8){
+    findings.push({tag:'warn', text:'Shorter than 8 characters — length matters more than complexity for resisting brute force.'});
+  } else if(pw.length >= 14){
+    findings.push({tag:'ok', text:'Good length (14+ characters) — this is the single strongest factor against brute force.'});
+  }
+  if(isSequential(pw)){
+    findings.push({tag:'warn', text:'Contains a keyboard or alphabetic sequence (e.g. "abc", "qwe", "123") — these are guessed early.'});
+    score -= 15;
+  }
+  if(hasRepeats(pw)){
+    findings.push({tag:'warn', text:'Contains 3+ repeated characters in a row, which reduces effective randomness.'});
+    score -= 10;
+  }
+  if(!/[A-Z]/.test(pw) || !/[a-z]/.test(pw)){
+    findings.push({tag:'info', text:'Using both uppercase and lowercase letters increases the character set an attacker must search.'});
+  }
+  if(!/[0-9]/.test(pw) && !/[^a-zA-Z0-9]/.test(pw)){
+    findings.push({tag:'info', text:'Adding numbers or symbols would increase the search space further.'});
+  }
+  if(findings.length === 0 || (!inCommonList && effectiveEntropy > 60)){
+    findings.push({tag:'ok', text:'No common weak patterns detected in this check.'});
+  }
+
+  const pct = Math.max(3, Math.min(100, Math.round((effectiveEntropy/90)*100) + (inCommonList ? -60 : 0)));
+  const fill = document.getElementById('meterFill');
+  fill.style.width = pct+'%';
+  const {label, color} = strengthLabel(effectiveEntropy, inCommonList);
+  fill.style.background = color;
+  document.getElementById('meterLabel').textContent = label;
+
+  const guessesNeeded = inCommonList ? 500 : Math.pow(2, effectiveEntropy) / 2;
+  const scenarios = [
+    ["Online login (rate-limited)", 1, "~1 guess/sec"],
+    ["Online login (no rate limit)", 100, "~100 guesses/sec"],
+    ["Offline, slow hash (bcrypt)", 10000, "~10k guesses/sec"],
+    ["Offline, fast hash (MD5/SHA1) on GPU", 1e10, "~10 billion guesses/sec"]
+  ];
+  document.getElementById('crackTimesBody').innerHTML = scenarios.map(([name,rate,rateLabel])=>{
+    const t = guessesNeeded / rate;
+    return `<tr><td>${name}</td><td class="time">${rateLabel}</td><td class="time">${fmtTime(t)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('findings').innerHTML = findings.map(f=>
+    `<li><span class="tag ${f.tag}">${f.tag}</span><span>${f.text}</span></li>`
+  ).join('');
+}
+pwInput.addEventListener('input', updateStrength);
+
+/* breach check via HIBP k-anonymity */
+document.getElementById('checkBreach').addEventListener('click', async ()=>{
+  const pw = pwInput.value;
+  const resultBox = document.getElementById('breachResult');
+  if(!pw){ resultBox.innerHTML = '<div class="breach-box">Type a password first.</div>'; return; }
+  resultBox.innerHTML = '<div class="breach-box">Checking…</div>';
+  try{
+    const enc = new TextEncoder().encode(pw);
+    const digest = await crypto.subtle.digest('SHA-1', enc);
+    const hashHex = Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+    const prefix = hashHex.slice(0,5), suffix = hashHex.slice(5);
+    const resp = await fetch('https://api.pwnedpasswords.com/range/'+prefix);
+    const text = await resp.text();
+    const match = text.split('\n').find(line=>line.startsWith(suffix));
+    if(match){
+      const count = match.split(':')[1].trim();
+      resultBox.innerHTML = `<div class="breach-box hit">Found in known breach data — seen <strong>${count}</strong> times before. Treat this password as compromised and avoid reusing it anywhere.</div>`;
+    } else {
+      resultBox.innerHTML = '<div class="breach-box clear">Not found in the breach data checked. This does not guarantee strength — pair it with the checks above.</div>';
+    }
+  } catch(e){
+    resultBox.innerHTML = '<div class="breach-box">Could not reach the breach-check service right now.</div>';
+  }
+});
+
+/* ---------- Hash Lab ---------- */
+document.getElementById('wordlistChoice').addEventListener('change', (e)=>{
+  document.getElementById('customWordlistRow').style.display = e.target.value === 'custom' ? 'block' : 'none';
+});
+
+/* Minimal MD5 implementation (public-domain style, compact) */
+function md5(str){
+  function rl(n,c){return (n<<c)|(n>>>(32-c));}
+  function ad(a,b){const lo=(a&0xffff)+(b&0xffff);const hi=(a>>16)+(b>>16)+(lo>>16);return (hi<<16)|(lo&0xffff);}
+  function cmn(q,a,b,x,s,t){a=ad(ad(a,q),ad(x,t));return ad(rl(a,s),b);}
+  function ff(a,b,c,d,x,s,t){return cmn((b&c)|((~b)&d),a,b,x,s,t);}
+  function gg(a,b,c,d,x,s,t){return cmn((b&d)|(c&(~d)),a,b,x,s,t);}
+  function hh(a,b,c,d,x,s,t){return cmn(b^c^d,a,b,x,s,t);}
+  function ii(a,b,c,d,x,s,t){return cmn(c^(b|(~d)),a,b,x,s,t);}
+  function toWords(s){
+    const n=s.length;
+    const words=[]; for(let i=0;i<n*8;i+=8) words[i>>5] |= (s.charCodeAt(i/8)&0xff) << (i%32);
+    return words;
+  }
+  function utf8(s){return unescape(encodeURIComponent(s));}
+  str = utf8(str);
+  const x = toWords(str);
+  const len = str.length*8;
+  x[len>>5] |= 0x80 << (len%32);
+  x[(((len+64)>>>9)<<4)+14] = len;
+  let a=1732584193,b=-271733879,c=-1732584194,d=271733878;
+  for(let i=0;i<x.length;i+=16){
+    const oa=a,ob=b,oc=c,od=d;
+    a=ff(a,b,c,d,x[i+0]||0,7,-680876936); d=ff(d,a,b,c,x[i+1]||0,12,-389564586);
+    c=ff(c,d,a,b,x[i+2]||0,17,606105819); b=ff(b,c,d,a,x[i+3]||0,22,-1044525330);
+    a=ff(a,b,c,d,x[i+4]||0,7,-176418897); d=ff(d,a,b,c,x[i+5]||0,12,1200080426);
+    c=ff(c,d,a,b,x[i+6]||0,17,-1473231341); b=ff(b,c,d,a,x[i+7]||0,22,-45705983);
+    a=ff(a,b,c,d,x[i+8]||0,7,1770035416); d=ff(d,a,b,c,x[i+9]||0,12,-1958414417);
+    c=ff(c,d,a,b,x[i+10]||0,17,-42063); b=ff(b,c,d,a,x[i+11]||0,22,-1990404162);
+    a=ff(a,b,c,d,x[i+12]||0,7,1804603682); d=ff(d,a,b,c,x[i+13]||0,12,-40341101);
+    c=ff(c,d,a,b,x[i+14]||0,17,-1502002290); b=ff(b,c,d,a,x[i+15]||0,22,1236535329);
+    a=gg(a,b,c,d,x[i+1]||0,5,-165796510); d=gg(d,a,b,c,x[i+6]||0,9,-1069501632);
+    c=gg(c,d,a,b,x[i+11]||0,14,643717713); b=gg(b,c,d,a,x[i+0]||0,20,-373897302);
+    a=gg(a,b,c,d,x[i+5]||0,5,-701558691); d=gg(d,a,b,c,x[i+10]||0,9,38016083);
+    c=gg(c,d,a,b,x[i+15]||0,14,-660478335); b=gg(b,c,d,a,x[i+4]||0,20,-405537848);
+    a=gg(a,b,c,d,x[i+9]||0,5,568446438); d=gg(d,a,b,c,x[i+14]||0,9,-1019803690);
+    c=gg(c,d,a,b,x[i+3]||0,14,-187363961); b=gg(b,c,d,a,x[i+8]||0,20,1163531501);
+    a=gg(a,b,c,d,x[i+13]||0,5,-1444681467); d=gg(d,a,b,c,x[i+2]||0,9,-51403784);
+    c=gg(c,d,a,b,x[i+7]||0,14,1735328473); b=gg(b,c,d,a,x[i+12]||0,20,-1926607734);
+    a=hh(a,b,c,d,x[i+5]||0,4,-378558); d=hh(d,a,b,c,x[i+8]||0,11,-2022574463);
+    c=hh(c,d,a,b,x[i+11]||0,16,1839030562); b=hh(b,c,d,a,x[i+14]||0,23,-35309556);
+    a=hh(a,b,c,d,x[i+1]||0,4,-1530992060); d=hh(d,a,b,c,x[i+4]||0,11,1272893353);
+    c=hh(c,d,a,b,x[i+7]||0,16,-155497632); b=hh(b,c,d,a,x[i+10]||0,23,-1094730640);
+    a=hh(a,b,c,d,x[i+13]||0,4,681279174); d=hh(d,a,b,c,x[i+0]||0,11,-358537222);
+    c=hh(c,d,a,b,x[i+3]||0,16,-722521979); b=hh(b,c,d,a,x[i+6]||0,23,76029189);
+    a=hh(a,b,c,d,x[i+9]||0,4,-640364487); d=hh(d,a,b,c,x[i+12]||0,11,-421815835);
+    c=hh(c,d,a,b,x[i+15]||0,16,530742520); b=hh(b,c,d,a,x[i+2]||0,23,-995338651);
+    a=ii(a,b,c,d,x[i+0]||0,6,-198630844); d=ii(d,a,b,c,x[i+7]||0,10,1126891415);
+    c=ii(c,d,a,b,x[i+14]||0,15,-1416354905); b=ii(b,c,d,a,x[i+5]||0,21,-57434055);
+    a=ii(a,b,c,d,x[i+12]||0,6,1700485571); d=ii(d,a,b,c,x[i+3]||0,10,-1894986606);
+    c=ii(c,d,a,b,x[i+10]||0,15,-1051523); b=ii(b,c,d,a,x[i+1]||0,21,-2054922799);
+    a=ii(a,b,c,d,x[i+8]||0,6,1873313359); d=ii(d,a,b,c,x[i+15]||0,10,-30611744);
+    c=ii(c,d,a,b,x[i+6]||0,15,-1560198380); b=ii(b,c,d,a,x[i+13]||0,21,1309151649);
+    a=ii(a,b,c,d,x[i+4]||0,6,-145523070); d=ii(d,a,b,c,x[i+11]||0,10,-1120210379);
+    c=ii(c,d,a,b,x[i+2]||0,15,718787259); b=ii(b,c,d,a,x[i+9]||0,21,-343485551);
+    a=ad(a,oa); b=ad(b,ob); c=ad(c,oc); d=ad(d,od);
+  }
+  function toHex(n){
+    let s='';
+    for(let i=0;i<4;i++) s += ((n>>(i*8))&0xff).toString(16).padStart(2,'0');
+    return s;
+  }
+  return toHex(a)+toHex(b)+toHex(c)+toHex(d);
+}
+
+function crc32(str){
+  const enc = new TextEncoder().encode(str);
+  let table = crc32.table;
+  if(!table){
+    table = crc32.table = new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let c = n;
+      for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+  }
+  let crc = 0xFFFFFFFF;
+  for(let i=0;i<enc.length;i++) crc = table[(crc ^ enc[i]) & 0xFF] ^ (crc >>> 8);
+  crc = (crc ^ 0xFFFFFFFF) >>> 0;
+  return crc.toString(16).padStart(8,'0');
+}
+
+const SUBTLE_ALGOS = { sha1:'SHA-1', sha256:'SHA-256', sha384:'SHA-384', sha512:'SHA-512' };
+
+async function computeHash(type, str){
+  if(type === 'md5') return md5(str);
+  if(type === 'crc32') return crc32(str);
+  const enc = new TextEncoder().encode(str);
+  const digest = await crypto.subtle.digest(SUBTLE_ALGOS[type], enc);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function leetVariants(word){
+  const map = {a:'4',e:'3',i:'1',o:'0',s:'5'};
+  let out = word;
+  for(const [k,v] of Object.entries(map)) out = out.split(k).join(v).split(k.toUpperCase()).join(v);
+  return out;
+}
+
+function buildCandidates(){
+  const source = document.getElementById('wordlistChoice').value;
+  let base = source === 'custom'
+    ? document.getElementById('customWordlist').value.split('\n').map(s=>s.trim()).filter(Boolean)
+    : COMMON.slice();
+
+  const useCase = document.getElementById('ruleCase').checked;
+  const useDigits = document.getElementById('ruleDigits').checked;
+  const useYears = document.getElementById('ruleYears').checked;
+  const useLeet = document.getElementById('ruleLeet').checked;
+
+  const suffixes = [''];
+  if(useDigits) for(let i=0;i<1000;i++) suffixes.push(String(i));
+  if(useYears) for(let y=1970;y<=2030;y++) suffixes.push(String(y));
+
+  function* gen(){
+    for(const w of base){
+      const forms = new Set([w]);
+      if(useCase) forms.add(w.charAt(0).toUpperCase()+w.slice(1));
+      if(useLeet) forms.add(leetVariants(w));
+      if(useCase && useLeet) forms.add(leetVariants(w.charAt(0).toUpperCase()+w.slice(1)));
+      for(const f of forms){
+        for(const suf of suffixes){
+          yield f + suf;
+        }
+      }
+    }
+  }
+  return gen;
+}
+
+function updateSpaceEstimate(){
+  const source = document.getElementById('wordlistChoice').value;
+  const baseCount = source === 'custom'
+    ? document.getElementById('customWordlist').value.split('\n').filter(s=>s.trim()).length
+    : COMMON.length;
+  const useCase = document.getElementById('ruleCase').checked;
+  const useDigits = document.getElementById('ruleDigits').checked;
+  const useYears = document.getElementById('ruleYears').checked;
+  const useLeet = document.getElementById('ruleLeet').checked;
+  let forms = 1 + (useCase?1:0) + (useLeet?1:0) + (useCase&&useLeet?1:0);
+  let suffixCount = 1 + (useDigits?1000:0) + (useYears?61:0);
+  const total = baseCount * forms * suffixCount;
+  document.getElementById('spaceEstimate').textContent =
+    `Current search space: ~${total.toLocaleString()} candidates from ${baseCount} base words.`;
+}
+['wordlistChoice','ruleCase','ruleDigits','ruleYears','ruleLeet'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updateSpaceEstimate);
+  document.getElementById(id).addEventListener('change', updateSpaceEstimate);
+});
+document.getElementById('customWordlist').addEventListener('input', updateSpaceEstimate);
+updateSpaceEstimate();
+
+document.getElementById('hashType').addEventListener('change', (e)=>{
+  const isScrypt = e.target.value === 'scrypt';
+  document.getElementById('scryptParams').style.display = isScrypt ? 'grid' : 'none';
+  document.getElementById('hashInput').closest('.field-row').style.display = isScrypt ? 'none' : 'block';
+});
+
+/* ---------- slow KDF wrappers ---------- */
+function bcryptMatches(candidate, targetHash){
+  return new Promise((resolve)=>{
+    try{
+      dcodeIO.bcrypt.compare(candidate, targetHash, (err, res)=> resolve(!err && res));
+    }catch(e){ resolve(false); }
+  });
+}
+
+function argon2Matches(candidate, targetHash){
+  return argon2.verify({ pass: candidate, encoded: targetHash })
+    .then(()=>true)
+    .catch(()=>false);
+}
+
+function hexToBytes(hex){
+  hex = hex.replace(/^0x/i,'');
+  const out = new Uint8Array(hex.length/2);
+  for(let i=0;i<out.length;i++) out[i] = parseInt(hex.substr(i*2,2),16);
+  return out;
+}
+
+function scryptMatches(candidate, params){
+  return new Promise((resolve)=>{
+    const saltRaw = params.salt.trim();
+    const salt = saltRaw.startsWith('0x') ? hexToBytes(saltRaw) : saltRaw;
+    scrypt(candidate, salt, {
+      N: params.N, r: params.r, p: params.p, dkLen: params.dkLen, encoding: 'hex'
+    }, (derivedHex)=>{
+      resolve(derivedHex.toLowerCase() === params.target.toLowerCase());
+    });
+  });
+}
+
+async function candidateMatches(type, candidate, targetHash){
+  if(type === 'bcrypt') return bcryptMatches(candidate, targetHash);
+  if(type === 'argon2') return argon2Matches(candidate, targetHash);
+  if(type === 'scrypt'){
+    return scryptMatches(candidate, {
+      salt: document.getElementById('scryptSalt').value,
+      target: document.getElementById('scryptKeyHex').value.trim(),
+      N: parseInt(document.getElementById('scryptN').value,10),
+      r: parseInt(document.getElementById('scryptR').value,10),
+      p: parseInt(document.getElementById('scryptP').value,10),
+      dkLen: parseInt(document.getElementById('scryptDkLen').value,10)
+    });
+  }
+  const h = await computeHash(type, candidate);
+  return h === targetHash;
+}
+
+let running = false;
+document.getElementById('runBtn').addEventListener('click', async ()=>{
+  const runBtn = document.getElementById('runBtn');
+  const consoleEl = document.getElementById('console');
+  const targetHash = document.getElementById('hashInput').value.trim();
+  const hashType = document.getElementById('hashType').value;
+  const targetHashLookup = ['bcrypt','argon2'].includes(hashType) ? targetHash : targetHash.toLowerCase();
+
+  if(running){ running = false; return; }
+  const missingTarget = hashType === 'scrypt'
+    ? !document.getElementById('scryptKeyHex').value.trim()
+    : !targetHash;
+  if(missingTarget){
+    consoleEl.textContent = hashType === 'scrypt'
+      ? 'Enter the expected derived key (hex) for scrypt first.'
+      : 'Enter a hash to attack first.';
+    return;
+  }
+
+  running = true;
+  runBtn.textContent = 'Stop';
+  runBtn.classList.add('stop');
+  const gen = buildCandidates()();
+  let attempts = 0;
+  const start = performance.now();
+  consoleEl.textContent = 'Starting…\n';
+  const slowAlgo = ['bcrypt','argon2','scrypt'].includes(hashType);
+  const batchSize = slowAlgo ? 1 : 300;
+
+  async function step(){
+    if(!running) { finish(null); return; }
+    const batchLog = [];
+    for(let i=0;i<batchSize;i++){
+      const next = gen.next();
+      if(next.done){ finish(null); return; }
+      const candidate = next.value;
+      attempts++;
+      const isMatch = await candidateMatches(hashType, candidate, targetHashLookup);
+      if(isMatch){ finish(candidate); return; }
+      if(!slowAlgo && attempts % 5000 === 0) batchLog.push(`… ${attempts.toLocaleString()} tried, still searching`);
+      if(slowAlgo) batchLog.push(`trying "${candidate}"…`);
+    }
+    const elapsed = (performance.now()-start)/1000;
+    document.getElementById('statAttempts').textContent = attempts.toLocaleString();
+    document.getElementById('statRate').textContent = Math.round(attempts/elapsed).toLocaleString();
+    document.getElementById('statElapsed').textContent = elapsed.toFixed(1)+'s';
+    if(batchLog.length) consoleEl.textContent += batchLog.join('\n')+'\n';
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+    setTimeout(step, 0);
+  }
+
+  function finish(result){
+    running = false;
+    runBtn.textContent = 'Start attempt';
+    runBtn.classList.remove('stop');
+    const elapsed = (performance.now()-start)/1000;
+    document.getElementById('statAttempts').textContent = attempts.toLocaleString();
+    document.getElementById('statRate').textContent = Math.round(attempts/Math.max(elapsed,0.001)).toLocaleString();
+    document.getElementById('statElapsed').textContent = elapsed.toFixed(1)+'s';
+    if(result){
+      consoleEl.innerHTML += `<span class="hit-line">Match found: "${result}" after ${attempts.toLocaleString()} attempts (${elapsed.toFixed(1)}s)</span>\n`;
+    } else if(attempts === 0 || !targetHash){
+      consoleEl.innerHTML += `<span class="dim">Stopped.</span>\n`;
+    } else {
+      consoleEl.innerHTML += `<span class="dim">Search space exhausted — no match in ${attempts.toLocaleString()} attempts. Try enabling more mutation rules or a larger wordlist.</span>\n`;
+    }
+  }
+
+  step();
+});
+
+/* ---------- Password Generator ---------- */
+
+function secureRandomInt(max){
+  const range = Math.floor(4294967296 / max) * max;
+  let x;
+  do{ x = crypto.getRandomValues(new Uint32Array(1))[0]; } while(x >= range);
+  return x % max;
+}
+
+function generateRandomPassword(length, pools){
+  const alphabet = pools.join('');
+  let out = '';
+  for(let i=0;i<length;i++) out += alphabet[secureRandomInt(alphabet.length)];
+  return out;
+}
+
+function generatePassphrase(wordCount){
+  const words = [];
+  for(let i=0;i<wordCount;i++) words.push(PASSPHRASE_WORDS[secureRandomInt(PASSPHRASE_WORDS.length)]);
+  const capIdx = secureRandomInt(wordCount);
+  words[capIdx] = words[capIdx].charAt(0).toUpperCase()+words[capIdx].slice(1);
+  const tailNumber = secureRandomInt(90)+10;
+  return words.join('-') + '-' + tailNumber;
+}
+
+const genLength = document.getElementById('genLength');
+genLength.addEventListener('input', ()=> document.getElementById('genLengthLabel').textContent = genLength.value);
+document.getElementById('genWordCount').addEventListener('input', (e)=>
+  document.getElementById('genWordCountLabel').textContent = e.target.value);
+
+document.querySelectorAll('input[name=genStyle]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    const isPassphrase = document.querySelector('input[name=genStyle]:checked').value === 'passphrase';
+    document.getElementById('passphraseWords').style.display = isPassphrase ? 'block' : 'none';
+    document.querySelectorAll('#generator fieldset')[0].style.opacity = isPassphrase ? 0.45 : 1;
+    document.querySelectorAll('#generator fieldset')[1].style.opacity = isPassphrase ? 0.45 : 1;
+  });
+});
+
+function updateGenMeter(pw){
+  const fill = document.getElementById('genMeterFill');
+  const label = document.getElementById('genMeterLabel');
+  const note = document.getElementById('genEntropyNote');
+  if(!pw){ fill.style.width='0%'; label.textContent='—'; note.textContent=''; return; }
+  const isPassphrase = document.querySelector('input[name=genStyle]:checked').value === 'passphrase';
+  let entropy;
+  if(isPassphrase){
+    const wc = parseInt(document.getElementById('genWordCount').value,10);
+    entropy = wc * Math.log2(PASSPHRASE_WORDS.length) + Math.log2(90);
+  } else {
+    entropy = Math.log2(charsetSize(pw)) * pw.length;
+  }
+  const pct = Math.max(6, Math.min(100, Math.round((entropy/90)*100)));
+  fill.style.width = pct+'%';
+  const {label: lbl, color} = strengthLabel(entropy, false);
+  fill.style.background = color;
+  label.textContent = lbl;
+  const rate = 1e10;
+  note.textContent = `~${Math.round(entropy)} bits of entropy — an offline GPU attack at 10 billion guesses/sec would take roughly ${fmtTime(Math.pow(2,entropy)/2/rate)}.`;
+}
+
+document.getElementById('genBtn').addEventListener('click', ()=>{
+  const style = document.querySelector('input[name=genStyle]:checked').value;
+  let result;
+  if(style === 'passphrase'){
+    result = generatePassphrase(parseInt(document.getElementById('genWordCount').value,10));
+  } else {
+    const pools = [];
+    const excludeAmbig = document.getElementById('genAmbig').checked;
+    let lower = 'abcdefghijklmnopqrstuvwxyz';
+    let upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let digits = '0123456789';
+    let symbols = '!@#$%^&*()-_=+[]{};:,.<>?/';
+    if(excludeAmbig){
+      lower = lower.replace(/[l]/g,''); upper = upper.replace(/[IO]/g,''); digits = digits.replace(/[01]/g,'');
+    }
+    if(document.getElementById('genLower').checked) pools.push(lower);
+    if(document.getElementById('genUpper').checked) pools.push(upper);
+    if(document.getElementById('genDigits').checked) pools.push(digits);
+    if(document.getElementById('genSymbols').checked) pools.push(symbols);
+    if(pools.length === 0){
+      document.getElementById('genOutput').value = '';
+      updateGenMeter('');
+      alert('Select at least one character type.');
+      return;
+    }
+    result = generateRandomPassword(parseInt(genLength.value,10), pools);
+  }
+  document.getElementById('genOutput').value = result;
+  updateGenMeter(result);
+});
+
+function legacyCopy(inputEl){
+  inputEl.removeAttribute('readonly');
+  inputEl.focus();
+  inputEl.select();
+  inputEl.setSelectionRange(0, inputEl.value.length);
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+  inputEl.setAttribute('readonly', 'true');
+  return ok;
+}
+
+document.getElementById('genCopy').addEventListener('click', async ()=>{
+  const out = document.getElementById('genOutput');
+  const btn = document.getElementById('genCopy');
+  if(!out.value) return;
+  const original = btn.textContent;
+  let copied = false;
+
+  if(navigator.clipboard && window.isSecureContext){
+    try{
+      await navigator.clipboard.writeText(out.value);
+      copied = true;
+    }catch(e){ copied = false; }
+  }
+  if(!copied){
+    copied = legacyCopy(out);
+  }
+
+  if(copied){
+    btn.textContent = 'Copied';
+    setTimeout(()=> btn.textContent = original, 1200);
+  } else {
+    out.removeAttribute('readonly');
+    out.focus();
+    out.select();
+    out.setAttribute('readonly', 'true');
+    btn.textContent = 'Press Ctrl/Cmd+C';
+    setTimeout(()=> btn.textContent = original, 2000);
+  }
+});
+</script>
+</body>
+</html>
