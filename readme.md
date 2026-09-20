@@ -10,7 +10,7 @@ Hash Lab is a hands-on, browser-based sandbox designed for understanding passwor
 
 ## Usage
 
-Simply open `hash-lab.html` in any modern web browser. No server setup or installation is required.
+Simply open `hash-lab (1).html` in any modern web browser. No server setup or installation is required.
 
 ## Educational Purpose
 
